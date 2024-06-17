@@ -31,9 +31,8 @@ const VideoPlayer = () => {
         <Video
           ref={videoRef}
           style={{ flex: 1 }}
-          //   shouldPlay
           source={source}
-          useNativeControls={false}
+          useNativeControls={true}
           resizeMode={ResizeMode.CONTAIN}
           isLooping
         />
