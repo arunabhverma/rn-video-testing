@@ -23,6 +23,7 @@ export default function RootLayout() {
               statusBarTranslucent: true,
               title: "",
               headerTintColor: "white",
+              headerShown: false,
             }}
           />
         </Stack>

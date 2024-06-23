@@ -19,8 +19,8 @@ const Button = (props: PressableProps) => {
       transform: [
         {
           scale: isPressed
-            ? withTiming(0.8, { duration: 300 })
-            : withTiming(1, { duration: 300 }),
+            ? withTiming(0.5, { duration: 200 })
+            : withTiming(1, { duration: 200 }),
         },
       ],
     };
@@ -32,7 +32,9 @@ const Button = (props: PressableProps) => {
       onTouchStart={() => setIsPressed(true)}
       onTouchEnd={() => setIsPressed(false)}
     >
-      <Animated.View style={animatedStyle}>{props.children}</Animated.View>
+      <View>
+        <Animated.View style={animatedStyle}>{props.children}</Animated.View>
+      </View>
     </Pressable>
   );
 };
