@@ -1,41 +1,14 @@
-import {
-  ActivityIndicator,
-  Alert,
-  StatusBar,
-  SafeAreaView as RNSafeAreaView,
-  StyleSheet,
-  Text,
-  View,
-  Pressable,
-} from "react-native";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { useTheme } from "@react-navigation/native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as ScreenOrientation from "expo-screen-orientation";
-import { Ionicons, MaterialIcons, AntDesign } from "@expo/vector-icons";
-import { ResizeMode, Video } from "expo-av";
-import {
-  SafeAreaView,
-  useSafeAreaInsets,
-} from "react-native-safe-area-context";
-import { useNavigation } from "expo-router";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { AVPlaybackStatusSuccess, ResizeMode, Video } from "expo-av";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useLocalSearchParams, useNavigation } from "expo-router";
 import { formatDuration } from "@/utils";
 import Animated, {
   FadeIn,
-  FadeInDown,
-  FadeInUp,
   FadeOut,
-  FadeOutDown,
-  FadeOutUp,
-  LinearTransition,
-  ZoomIn,
-  ZoomInDown,
-  ZoomOut,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
@@ -44,20 +17,17 @@ import Animated, {
 import { Slider } from "react-native-awesome-slider";
 import Button from "@/components/Button";
 import { LinearGradient } from "expo-linear-gradient";
-import { useHeaderHeight } from "@react-navigation/elements";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { BlurView } from "expo-blur";
-
-const source = {
-  // uri: "http://devimages.apple.com/iphone/samples/bipbop/bipbopall.m3u8",
-  uri: "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-};
+import { LINEAR_GRADIENT_COLORS, SLIDER_THEME } from "@/constants";
+import CoverButton from "@/components/CoverButton";
+import ContainButton from "@/components/ContainButton";
+import StretchButton from "@/components/StratchButton";
 
 const VideoPlayer = () => {
+  const local = useLocalSearchParams();
+
   const navigation = useNavigation();
   const timeoutId = useRef(null);
-  const headerHeight = useHeaderHeight();
-  const { top } = useSafeAreaInsets();
 
   const videoRef = useRef(null);
   const [state, setState] = useState({
@@ -78,7 +48,6 @@ const VideoPlayer = () => {
   const isScrubbing = useSharedValue(false);
 
   const currentDuration = useSharedValue(0);
-  const duration = useSharedValue(0);
 
   const seekTo = async (time: number = 0) => {
     setState((prev) => ({
@@ -108,55 +77,52 @@ const VideoPlayer = () => {
     if (state.isControls) {
       timeoutId = setTimeout(() => {
         setState((prev) => ({ ...prev, isControls: false }));
-      }, 3000); // 3000 milliseconds = 3 seconds
+      }, 3000);
     }
-    return () => clearTimeout(timeoutId); // Clear the timeout if the component unmounts or control changes
-  }, [state]); // Dependency array with control
+    return () => clearTimeout(timeoutId);
+  }, [state]);
 
-  const onPlaybackStatusUpdate = (data) => {
-    if (!isScrubbing.value) {
-      if (data.durationMillis > data.positionMillis) {
-        setState((prev) => ({
-          ...prev,
-          currentDuration: data.positionMillis,
-        }));
-        currentDuration.value = data.positionMillis;
-        progress.value = data.positionMillis;
+  const onPlaybackStatusUpdate = (data: AVPlaybackStatusSuccess) => {
+    if (!data?.isLoaded) return;
+    if (data?.durationMillis && data?.playableDurationMillis) {
+      if (!isScrubbing.value) {
+        if (data?.durationMillis > data?.positionMillis) {
+          setState((prev) => ({
+            ...prev,
+            currentDuration: data?.positionMillis,
+          }));
+          currentDuration.value = data?.positionMillis;
+          progress.value = data?.positionMillis;
+        }
       }
-    }
 
-    if (
-      data.durationMillis > data.playableDurationMillis &&
-      data.positionMillis < data.playableDurationMillis
-    ) {
-      cache.value = data.playableDurationMillis;
+      if (
+        data?.durationMillis > data?.playableDurationMillis &&
+        data?.positionMillis < data?.playableDurationMillis
+      ) {
+        cache.value = data?.playableDurationMillis;
+      }
+      setState((prev) => ({ ...prev, isBuffering: data?.isBuffering }));
     }
-    setState((prev) => ({ ...prev, isBuffering: data.isBuffering }));
   };
 
-  const onLoad = (data) => {
-    max.value = data.durationMillis;
-    setState((prev) => ({ ...prev, duration: data.durationMillis }));
+  const onLoad = (data: AVPlaybackStatusSuccess) => {
+    if (data.durationMillis) {
+      max.value = data.durationMillis;
+      setState((prev) => ({ ...prev, duration: data.durationMillis || 0 }));
+    }
   };
 
   const togglePlay = () => {
     if (state.isPlay) {
-      videoRef.current.pauseAsync();
+      videoRef?.current?.pauseAsync();
       setState((prev) => ({ ...prev, isPlay: false }));
     } else {
-      videoRef.current.playAsync();
+      videoRef?.current?.playAsync();
       setState((prev) => ({ ...prev, isPlay: true }));
     }
   };
 
-  const play = () => {
-    videoRef.current.playAsync();
-    setState((prev) => ({ ...prev, isPlay: true }));
-  };
-  const pause = () => {
-    videoRef.current.pauseAsync();
-    setState((prev) => ({ ...prev, isPlay: false }));
-  };
   const prev = () => {
     seekTo(state.currentDuration - 10 * 1000);
   };
@@ -177,10 +143,6 @@ const VideoPlayer = () => {
       );
     }
   };
-
-  const onTouchEndCapture = useCallback(() => {
-    setState((prev) => ({ ...prev, isControls: !prev.isControls }));
-  }, []);
 
   const PlayButton = useMemo(() => {
     return (
@@ -214,47 +176,35 @@ const VideoPlayer = () => {
     switch (state.resizeMode) {
       case ResizeMode.STRETCH: {
         return (
-          <Button
+          <CoverButton
             onPress={() =>
               setState((prev) => ({ ...prev, resizeMode: ResizeMode.COVER }))
             }
-          >
-            <View style={styles.resizeButtonWrapper}>
-              <AntDesign name="arrowsalt" size={12} color="white" />
-            </View>
-          </Button>
+          />
         );
       }
       case ResizeMode.COVER: {
         return (
-          <Button
+          <ContainButton
             onPress={() =>
               setState((prev) => ({
                 ...prev,
                 resizeMode: ResizeMode.CONTAIN,
               }))
             }
-          >
-            {/* <View style={styles.resizeButtonWrapper}> */}
-            <MaterialIcons name="aspect-ratio" size={18} color="white" />
-            {/* </View> */}
-          </Button>
+          />
         );
       }
       default: {
         return (
-          <Button
+          <StretchButton
             onPress={() =>
               setState((prev) => ({
                 ...prev,
                 resizeMode: ResizeMode.STRETCH,
               }))
             }
-          >
-            {/* <View style={styles.resizeButtonWrapper}> */}
-            <Ionicons name="expand" size={18} color="white" />
-            {/* </View> */}
-          </Button>
+          />
         );
       }
     }
@@ -282,20 +232,12 @@ const VideoPlayer = () => {
         thumbWidth={25}
         bubbleTranslateY={-25 - 15}
         bubbleTextStyle={{ fontSize: 15 }}
-        theme={{
-          cacheTrackTintColor: "rgba(255, 255, 255, 0.5)",
-          maximumTrackTintColor: "rgba(255, 255, 255, 0.3)",
-          minimumTrackTintColor: "white",
-          bubbleBackgroundColor: "rgba(255, 255, 255, 0.3)",
-          bubbleTextColor: "white",
-        }}
-        containerStyle={{
-          borderRadius: 100,
-        }}
-        onSlidingStart={() => videoRef.current.pauseAsync()}
+        theme={SLIDER_THEME}
+        containerStyle={styles.sliderContainerStyle}
+        onSlidingStart={() => videoRef?.current?.pauseAsync()}
         onSlidingComplete={(val) => {
           seekTo(val);
-          state.isPlay && videoRef.current.playAsync();
+          state.isPlay && videoRef?.current?.playAsync();
         }}
         onValueChange={(val) => {
           resetTimeout();
@@ -305,61 +247,21 @@ const VideoPlayer = () => {
     );
   }, [state.isPlay]);
 
-  const GradientTopView = useMemo(() => {
-    return (
-      <View
-        pointerEvents="none"
-        style={{
-          ...StyleSheet.absoluteFillObject,
-        }}
-      >
-        <LinearGradient
-          colors={["rgba(0,0,0,0.9)", "transparent"]}
-          style={{ height: "150%", bottom: "50%" }}
-        />
-      </View>
-    );
-  }, []);
-
   const GradientWrapper = useMemo(() => {
     return (
       <LinearGradient
-        colors={["rgba(0,0,0,0.5)", "transparent", "rgba(0,0,0,0.9)"]}
+        colors={LINEAR_GRADIENT_COLORS}
         style={StyleSheet.absoluteFillObject}
       />
     );
   }, []);
 
-  const GradientBottomView = useMemo(() => {
-    return (
-      <View
-        style={{
-          ...StyleSheet.absoluteFillObject,
-        }}
-      >
-        <LinearGradient
-          colors={["transparent", "rgba(0,0,0,0.9)"]}
-          style={{ height: "150%", bottom: "50%" }}
-        />
-      </View>
-    );
-  }, []);
-
   const Header = () => {
     return (
-      <Animated.View
-        style={{ height: 200, position: "absolute", top: 0, width: "100%" }}
-      >
+      <Animated.View style={styles.headerContainer}>
         <Button
           onPress={() => navigation.goBack()}
-          style={{
-            width: 35,
-            aspectRatio: 1,
-            borderRadius: 100,
-            overflow: "hidden",
-            justifyContent: "center",
-            alignItems: "center",
-          }}
+          style={styles.headerButtonStyle}
         >
           <Ionicons name="close" size={28} color="white" />
         </Button>
@@ -383,19 +285,14 @@ const VideoPlayer = () => {
 
   const Controls = useMemo(() => {
     return (
-      <View style={{ position: "absolute", bottom: 0, width: "100%" }}>
+      <View style={styles.controllerWrapper}>
         <GestureDetector gesture={pan}>
-          <View style={{ flex: 1, gap: 0 }}>
+          <View style={styles.controllerSubWrapper}>
             {/* SlideBar */}
             <View style={{ gap: 15 }}>
               {SliderBar}
               {/* duration */}
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "space-between",
-                }}
-              >
+              <View style={styles.durationWrapper}>
                 <Text style={styles.durationTextStyle}>
                   {formatDuration(state.currentDuration)}
                 </Text>
@@ -408,24 +305,9 @@ const VideoPlayer = () => {
             {/* SlideBar */}
 
             {/* controls */}
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-                paddingHorizontal: 20,
-                paddingVertical: 10,
-              }}
-            >
+            <View style={styles.resizeButtonContainer}>
               <View>{ResizeButton}</View>
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  gap: 50,
-                }}
-              >
+              <View style={styles.playButtonContainer}>
                 <>
                   {PreviousButton}
                   {PlayButton}
@@ -457,12 +339,7 @@ const VideoPlayer = () => {
         entering={FadeIn}
         exiting={FadeOut}
         pointerEvents="none"
-        style={{
-          ...StyleSheet.absoluteFillObject,
-          justifyContent: "center",
-          alignItems: "center",
-          backgroundColor: "rgba(0,0,0,0.3)",
-        }}
+        style={styles.loaderContainer}
       >
         <ActivityIndicator color={"white"} size={"large"} />
       </Animated.View>
@@ -482,9 +359,7 @@ const VideoPlayer = () => {
         pointerEvents={state.isControls ? "auto" : "none"}
       >
         {GradientWrapper}
-        <SafeAreaView
-          style={{ flex: 1, paddingHorizontal: 20, paddingTop: 10 }}
-        >
+        <SafeAreaView style={styles.controllerContainer}>
           <View style={{ flex: 1 }}>
             <Header />
           </View>
@@ -508,17 +383,12 @@ const VideoPlayer = () => {
   ]);
 
   return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: "black",
-      }}
-    >
+    <View style={styles.container}>
       <Video
         onTouchEndCapture={resetTimeout}
         ref={videoRef}
         style={{ flex: 1 }}
-        source={source}
+        source={local}
         onLoad={onLoad}
         onPlaybackStatusUpdate={onPlaybackStatusUpdate}
         resizeMode={state.resizeMode}
@@ -535,16 +405,74 @@ const VideoPlayer = () => {
 export default VideoPlayer;
 
 const styles = StyleSheet.create({
-  resizeButtonWrapper: {
-    width: 18,
-    aspectRatio: 1,
-    borderColor: "white",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
+  container: {
+    flex: 1,
+    backgroundColor: "black",
   },
+  // resizeButtonWrapper: {
+  //   width: 18,
+  //   aspectRatio: 1,
+  //   borderColor: "white",
+  //   justifyContent: "center",
+  //   alignItems: "center",
+  //   borderWidth: 1,
+  // },
   durationTextStyle: {
     color: "white",
     fontSize: 13,
+  },
+  controllerContainer: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+  },
+  loaderContainer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.3)",
+  },
+  controllerWrapper: {
+    position: "absolute",
+    bottom: 0,
+    width: "100%",
+  },
+  controllerSubWrapper: {
+    flex: 1,
+    gap: 0,
+  },
+  durationWrapper: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  resizeButtonContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  playButtonContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 50,
+  },
+  headerContainer: {
+    height: 200,
+    position: "absolute",
+    top: 0,
+    width: "100%",
+  },
+  headerButtonStyle: {
+    width: 35,
+    aspectRatio: 1,
+    borderRadius: 100,
+    overflow: "hidden",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sliderContainerStyle: {
+    borderRadius: 100,
   },
 });
