@@ -1,75 +1,89 @@
-import * as React from "react";
 import {
-  View,
-  StyleSheet,
-  Button,
   FlatList,
-  Text,
+  StyleSheet,
+  Image as RNImage,
+  View,
   useWindowDimensions,
-  TextInput,
-  Modal,
+  Text,
+  Pressable,
 } from "react-native";
-import { Video, ResizeMode } from "expo-av";
-import { mediaJSON } from "@/mock/VideoData";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useHeaderHeight } from "@react-navigation/elements";
-import { M3uParser } from "m3u-parser-generator";
-import { Link } from "expo-router";
+import React, { useState } from "react";
+import { MEDIA_DATA } from "@/mock/VideoData";
+import { Image } from "expo-image";
 import { useTheme } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { MEDIA_TYPE } from "@/types/home";
 
-const RenderItem = ({ item, index }) => {
-  const [status, setStatus] = React.useState({});
-  const video = React.useRef(null);
-  const headerHeight = useHeaderHeight();
-  const { top, bottom } = useSafeAreaInsets();
-  const { width, height } = useWindowDimensions();
+const RenderItem = ({ item }: { item: MEDIA_TYPE }) => {
+  const router = useRouter();
+  const { width } = useWindowDimensions();
+  const [height, setHeight] = useState(0);
+
+  const theme = useTheme();
+
+  RNImage.getSize(item.thumb, (imgWidth, imgHeight) => {
+    let aspectRatio = imgWidth / imgHeight;
+    const imageHeight = width / aspectRatio;
+    setHeight(imageHeight);
+  });
 
   return (
-    <Video
-      ref={video}
-      style={{ width, height: height - headerHeight, backgroundColor: "blue" }}
-      source={{
-        // uri: item.sources?.[0],
-        // uri: "https://live-hls-abr-cdn.livepush.io/live/bigbuckbunnyclip/index.m3u8",
-        // uri: "http://170.254.18.106/HISTORY/index.m3u8",
-        uri: "http://devimages.apple.com/iphone/samples/bipbop/bipbopall.m3u8",
-      }}
-      useNativeControls
-      videoStyle={{ marginBottom: bottom }}
-      resizeMode={ResizeMode.CONTAIN}
-      isLooping
-      onError={(e) => console.log("e", e)}
-      onPlaybackStatusUpdate={(status) => setStatus(() => status)}
-    />
+    <Pressable
+      onPress={() =>
+        router.navigate({
+          pathname: "/videoPlayer",
+          params: { uri: item.sources },
+        })
+      }
+    >
+      <Image
+        source={{ uri: item.thumb }}
+        contentFit="cover"
+        style={{ width: width, height: height }}
+      />
+      <View style={styles.detailsWrapper}>
+        <Text
+          numberOfLines={2}
+          style={[styles.descriptionText, { color: theme.colors.text }]}
+        >
+          {item.description}
+        </Text>
+        <Text numberOfLines={1} style={styles.title}>
+          {item.title}
+        </Text>
+      </View>
+    </Pressable>
   );
 };
 
-export default function App() {
-  const theme = useTheme();
+const Main = () => {
+  const { bottom } = useSafeAreaInsets();
   return (
-    <View style={styles.container}>
-      <Link href={"/videoPlayer"}>
-        <Text style={{ color: theme.colors.text }}>Hello world!</Text>
-      </Link>
+    <View style={{ flex: 1 }}>
+      <FlatList
+        data={MEDIA_DATA}
+        contentContainerStyle={{ gap: 20, paddingBottom: bottom }}
+        renderItem={({ item }) => <RenderItem item={item} />}
+        keyExtractor={(_, i) => i.toString()}
+      />
     </View>
   );
-}
+};
+
+export default Main;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+  detailsWrapper: {
+    padding: 15,
+    gap: 5,
   },
-  video: {
-    alignSelf: "center",
-    width: 320,
-    height: 200,
-    backgroundColor: "blue",
+  descriptionText: {
+    fontSize: 14,
+    fontWeight: "500",
   },
-  buttons: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
+  title: {
+    fontSize: 14,
+    color: "rgba(100,100,100,0.8)",
   },
 });
