@@ -1,10 +1,16 @@
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Platform,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { AVPlaybackStatusSuccess, ResizeMode, Video } from "expo-av";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { formatDuration } from "@/utils";
 import Animated, {
   FadeIn,
@@ -24,6 +30,7 @@ import ContainButton from "@/components/ContainButton";
 import StretchButton from "@/components/StratchButton";
 
 const VideoPlayer = () => {
+  const navigation = useNavigation();
   const local = useLocalSearchParams();
   const router = useRouter();
 
@@ -132,11 +139,23 @@ const VideoPlayer = () => {
 
   const fullscreen = async () => {
     if (state.fullscreen) {
+      if (Platform.OS === "android") {
+        navigation.setOptions({
+          navigationBarHidden: false,
+          statusBarHidden: false,
+        });
+      }
       setState((prev) => ({ ...prev, fullscreen: false }));
       await ScreenOrientation.lockAsync(
         ScreenOrientation.OrientationLock.PORTRAIT_UP
       );
     } else {
+      if (Platform.OS === "android") {
+        navigation.setOptions({
+          navigationBarHidden: true,
+          statusBarHidden: true,
+        });
+      }
       setState((prev) => ({ ...prev, fullscreen: true }));
       await ScreenOrientation.lockAsync(
         ScreenOrientation.OrientationLock.LANDSCAPE_RIGHT
