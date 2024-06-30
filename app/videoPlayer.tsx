@@ -4,7 +4,7 @@ import * as ScreenOrientation from "expo-screen-orientation";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { AVPlaybackStatusSuccess, ResizeMode, Video } from "expo-av";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams, useNavigation } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { formatDuration } from "@/utils";
 import Animated, {
   FadeIn,
@@ -25,8 +25,8 @@ import StretchButton from "@/components/StratchButton";
 
 const VideoPlayer = () => {
   const local = useLocalSearchParams();
+  const router = useRouter();
 
-  const navigation = useNavigation();
   const timeoutId = useRef(null);
 
   const videoRef = useRef(null);
@@ -230,6 +230,7 @@ const VideoPlayer = () => {
         bubble={(e) => formatDuration(e)}
         cache={cache}
         thumbWidth={25}
+        // renderBubble={() => null}
         bubbleTranslateY={-25 - 15}
         bubbleTextStyle={{ fontSize: 15 }}
         theme={SLIDER_THEME}
@@ -259,10 +260,7 @@ const VideoPlayer = () => {
   const Header = () => {
     return (
       <Animated.View style={styles.headerContainer}>
-        <Button
-          onPress={() => navigation.goBack()}
-          style={styles.headerButtonStyle}
-        >
+        <Button onPress={() => router.back()} style={styles.headerButtonStyle}>
           <Ionicons name="close" size={28} color="white" />
         </Button>
       </Animated.View>
@@ -279,14 +277,14 @@ const VideoPlayer = () => {
     }, 3000);
   };
 
-  const pan = Gesture.Tap().onStart(() => {
+  const TapHandler = Gesture.Tap().onStart(() => {
     runOnJS(resetTimeout)();
   });
 
   const Controls = useMemo(() => {
     return (
       <View style={styles.controllerWrapper}>
-        <GestureDetector gesture={pan}>
+        <GestureDetector gesture={TapHandler}>
           <View style={styles.controllerSubWrapper}>
             {/* SlideBar */}
             <View style={{ gap: 15 }}>
@@ -409,14 +407,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "black",
   },
-  // resizeButtonWrapper: {
-  //   width: 18,
-  //   aspectRatio: 1,
-  //   borderColor: "white",
-  //   justifyContent: "center",
-  //   alignItems: "center",
-  //   borderWidth: 1,
-  // },
   durationTextStyle: {
     color: "white",
     fontSize: 13,
