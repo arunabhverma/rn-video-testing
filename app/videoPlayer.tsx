@@ -1,11 +1,19 @@
-import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import * as ScreenOrientation from "expo-screen-orientation";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { AVPlaybackStatusSuccess, ResizeMode, Video } from "expo-av";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams, useNavigation } from "expo-router";
-import { formatDuration } from "@/utils";
+import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { calculateTimeDifference, formatDuration } from "@/utils";
 import Animated, {
   FadeIn,
   FadeOut,
@@ -24,20 +32,25 @@ import ContainButton from "@/components/ContainButton";
 import StretchButton from "@/components/StratchButton";
 
 const VideoPlayer = () => {
-  const local = useLocalSearchParams();
-
+  const { width } = useWindowDimensions();
   const navigation = useNavigation();
+  const local = useLocalSearchParams();
+  const router = useRouter();
+
   const timeoutId = useRef(null);
 
   const videoRef = useRef(null);
+
   const [state, setState] = useState({
     isPlay: true,
     fullscreen: false,
+    startDuration: 0,
     currentDuration: 0,
     duration: 0,
     isBuffering: true,
     resizeMode: ResizeMode.CONTAIN,
     isControls: false,
+    isSliding: false,
   });
 
   const cache = useSharedValue(0);
@@ -55,7 +68,7 @@ const VideoPlayer = () => {
       currentDuration: time,
     }));
 
-    await videoRef.current?.setPositionAsync(time);
+    await videoRef.current?.playFromPositionAsync(time);
     isScrubbing.value = false;
     currentDuration.value = time;
   };
@@ -132,11 +145,23 @@ const VideoPlayer = () => {
 
   const fullscreen = async () => {
     if (state.fullscreen) {
+      if (Platform.OS === "android") {
+        navigation.setOptions({
+          navigationBarHidden: false,
+          statusBarHidden: false,
+        });
+      }
       setState((prev) => ({ ...prev, fullscreen: false }));
       await ScreenOrientation.lockAsync(
         ScreenOrientation.OrientationLock.PORTRAIT_UP
       );
     } else {
+      if (Platform.OS === "android") {
+        navigation.setOptions({
+          navigationBarHidden: true,
+          statusBarHidden: true,
+        });
+      }
       setState((prev) => ({ ...prev, fullscreen: true }));
       await ScreenOrientation.lockAsync(
         ScreenOrientation.OrientationLock.LANDSCAPE_RIGHT
@@ -230,8 +255,8 @@ const VideoPlayer = () => {
         bubble={(e) => formatDuration(e)}
         cache={cache}
         thumbWidth={25}
-        bubbleTranslateY={-25 - 15}
-        bubbleTextStyle={{ fontSize: 15 }}
+        bubbleTranslateY={-50}
+        bubbleTextStyle={styles.bubbleTextStyle}
         theme={SLIDER_THEME}
         containerStyle={styles.sliderContainerStyle}
         onSlidingStart={() => videoRef?.current?.pauseAsync()}
@@ -259,10 +284,7 @@ const VideoPlayer = () => {
   const Header = () => {
     return (
       <Animated.View style={styles.headerContainer}>
-        <Button
-          onPress={() => navigation.goBack()}
-          style={styles.headerButtonStyle}
-        >
+        <Button onPress={() => router.back()} style={styles.headerButtonStyle}>
           <Ionicons name="close" size={28} color="white" />
         </Button>
       </Animated.View>
@@ -279,14 +301,14 @@ const VideoPlayer = () => {
     }, 3000);
   };
 
-  const pan = Gesture.Tap().onStart(() => {
+  const TapHandler = Gesture.Tap().onStart(() => {
     runOnJS(resetTimeout)();
   });
 
   const Controls = useMemo(() => {
     return (
       <View style={styles.controllerWrapper}>
-        <GestureDetector gesture={pan}>
+        <GestureDetector gesture={TapHandler}>
           <View style={styles.controllerSubWrapper}>
             {/* SlideBar */}
             <View style={{ gap: 15 }}>
@@ -352,35 +374,104 @@ const VideoPlayer = () => {
     };
   });
 
-  const VideoController = useMemo(() => {
-    return (
-      <Animated.View
-        style={[StyleSheet.absoluteFillObject, animatedStyle]}
-        pointerEvents={state.isControls ? "auto" : "none"}
-      >
-        {GradientWrapper}
-        <SafeAreaView style={styles.controllerContainer}>
-          <View style={{ flex: 1 }}>
-            <Header />
-          </View>
-          <View
-            style={{ flex: 3 }}
-            onTouchEndCapture={() =>
-              setState((prev) => ({ ...prev, isControls: false }))
-            }
-          />
-          <View style={{ flex: 2 }}>{Controls}</View>
-        </SafeAreaView>
-      </Animated.View>
-    );
-  }, [
-    state.isControls,
-    state.currentDuration,
-    state.duration,
-    state.resizeMode,
-    state.isPlay,
-    state.fullscreen,
-  ]);
+  const toggleSliding = (val: boolean) => {
+    val !== state.isSliding &&
+      setState((prev) => ({ ...prev, isSliding: val }));
+  };
+
+  const pauseAsync = async () => {
+    await videoRef?.current?.pauseAsync();
+  };
+
+  const setStartDuration = (value?: boolean) => {
+    setState((prev) => ({
+      ...prev,
+      startDuration: value
+        ? state.currentDuration === 0
+          ? 0
+          : state.currentDuration
+        : 0,
+    }));
+  };
+
+  const setCurrentDuration = (value: number) => {
+    setState((prev) => ({
+      ...prev,
+      currentDuration: value < 0 ? 0 : value,
+    }));
+  };
+
+  const SlideHandler = Gesture.Pan()
+    .onStart((e) => {
+      runOnJS(pauseAsync)();
+      runOnJS(setStartDuration)(true);
+    })
+    .onChange((e) => {
+      runOnJS(toggleSliding)(true);
+      let progressValue =
+        currentDuration.value + (max.value / width / 10) * e.translationX;
+      progress.value = progressValue;
+      runOnJS(setCurrentDuration)(+progressValue.toFixed(0));
+    })
+    .onFinalize(() => {
+      currentDuration.value = progress.value;
+      runOnJS(setStartDuration)(false);
+      runOnJS(toggleSliding)(false);
+      runOnJS(seekTo)(progress.value);
+    });
+
+  const VideoController = useMemo(
+    () => (
+      <GestureDetector gesture={SlideHandler}>
+        <Animated.View
+          style={StyleSheet.absoluteFillObject}
+          onTouchEndCapture={resetTimeout}
+        >
+          {state.isSliding && (
+            <View style={styles.containerCenter}>
+              <Text style={styles.centerDurationText}>
+                {formatDuration(state.currentDuration)}
+              </Text>
+              <Text style={styles.subCenterDurationText}>
+                {`(${calculateTimeDifference(
+                  state.startDuration,
+                  state.currentDuration
+                )})`}
+              </Text>
+            </View>
+          )}
+          <Animated.View
+            style={[StyleSheet.absoluteFillObject, animatedStyle]}
+            pointerEvents={state.isControls ? "auto" : "none"}
+          >
+            {GradientWrapper}
+            <SafeAreaView style={styles.controllerContainer}>
+              <View style={{ flex: 1 }}>
+                <Header />
+              </View>
+              <View
+                style={{ flex: 3 }}
+                onTouchEndCapture={() =>
+                  setState((prev) => ({ ...prev, isControls: false }))
+                }
+              />
+              <View style={{ flex: 2 }}>{Controls}</View>
+            </SafeAreaView>
+          </Animated.View>
+        </Animated.View>
+      </GestureDetector>
+    ),
+    [
+      state.isSliding,
+      state.isControls,
+      state.startDuration,
+      state.currentDuration,
+      state.duration,
+      state.resizeMode,
+      state.isPlay,
+      state.fullscreen,
+    ]
+  );
 
   return (
     <View style={styles.container}>
@@ -409,14 +500,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "black",
   },
-  // resizeButtonWrapper: {
-  //   width: 18,
-  //   aspectRatio: 1,
-  //   borderColor: "white",
-  //   justifyContent: "center",
-  //   alignItems: "center",
-  //   borderWidth: 1,
-  // },
   durationTextStyle: {
     color: "white",
     fontSize: 13,
@@ -474,5 +557,25 @@ const styles = StyleSheet.create({
   },
   sliderContainerStyle: {
     borderRadius: 100,
+  },
+  containerCenter: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  centerDurationText: {
+    color: "white",
+    fontSize: 50,
+    fontWeight: "500",
+  },
+  subCenterDurationText: {
+    color: "white",
+    fontSize: 30,
+    marginTop: 5,
+    fontWeight: "500",
+  },
+  bubbleTextStyle: {
+    fontSize: 20,
+    color: "white",
   },
 });

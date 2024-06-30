@@ -3,6 +3,7 @@
     "name": "rn-video-testing",
     "slug": "rn-video-testing",
     "version": "1.0.0",
+    "backgroundColor": "#000000",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
@@ -13,8 +14,7 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true,
-      "requireFullScreen": true
+      "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
